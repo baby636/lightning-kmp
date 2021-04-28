@@ -8,6 +8,7 @@ import fr.acinq.bitcoin.io.Output
 import fr.acinq.lightning.channel.ChannelOrigin
 import fr.acinq.lightning.channel.ChannelVersion
 import fr.acinq.lightning.serialization.ByteVectorKSerializer
+import fr.acinq.lightning.serialization.SatoshiKSerializer
 import fr.acinq.lightning.utils.BitField
 import fr.acinq.lightning.utils.toByteVector
 import kotlinx.serialization.Serializable
@@ -173,6 +174,21 @@ sealed class ShutdownTlv : Tlv {
 
 @Serializable
 sealed class ClosingSignedTlv : Tlv {
+    @Serializable
+    data class FeeRange(@Serializable(with = SatoshiKSerializer::class) val min: Satoshi, @Serializable(with = SatoshiKSerializer::class) val max: Satoshi) : ClosingSignedTlv() {
+        override val tag: Long get() = FeeRange.tag
+
+        override fun write(out: Output) {
+            LightningCodecs.writeU64(min.toLong(), out)
+            LightningCodecs.writeU64(max.toLong(), out)
+        }
+
+        companion object : TlvValueReader<FeeRange> {
+            const val tag: Long = 1
+            override fun read(input: Input): FeeRange = FeeRange(Satoshi(LightningCodecs.u64(input)), Satoshi(LightningCodecs.u64(input)))
+        }
+    }
+
     @Serializable
     data class ChannelData(val ecb: EncryptedChannelData) : ClosingSignedTlv() {
         override val tag: Long get() = ChannelData.tag

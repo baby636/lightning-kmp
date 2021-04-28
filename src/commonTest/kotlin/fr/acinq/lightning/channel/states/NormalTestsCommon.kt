@@ -278,7 +278,7 @@ class NormalTestsCommon : LightningTestSuite() {
     @Test
     fun `recv CMD_ADD_HTLC (after having sent Shutdown)`() {
         val (alice0, _) = reachNormal()
-        val (alice1, actionsAlice1) = alice0.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice1, actionsAlice1) = alice0.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         actionsAlice1.findOutgoingMessage<Shutdown>()
         assertTrue(alice1 is Normal && alice1.localShutdown != null && alice1.remoteShutdown == null)
 
@@ -297,7 +297,7 @@ class NormalTestsCommon : LightningTestSuite() {
         actionsAlice1.findOutgoingMessage<UpdateAddHtlc>()
 
         // at the same time bob initiates a closing
-        val (_, actionsBob1) = bob0.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (_, actionsBob1) = bob0.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         val shutdown = actionsBob1.findOutgoingMessage<Shutdown>()
 
         val (alice2, _) = alice1.processEx(ChannelEvent.MessageReceived(shutdown))
@@ -1326,7 +1326,7 @@ class NormalTestsCommon : LightningTestSuite() {
     fun `recv CMD_CLOSE (no pending htlcs)`() {
         val (alice, _) = reachNormal()
         assertNull(alice.localShutdown)
-        val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(alice1 is Normal)
         actions1.hasOutgoingMessage<Shutdown>()
         assertNotNull(alice1.localShutdown)
@@ -1337,7 +1337,7 @@ class NormalTestsCommon : LightningTestSuite() {
         val (alice, bob) = reachNormal()
         val (nodes, _, _) = addHtlc(1000.msat, payer = alice, payee = bob)
         val (alice1, _) = nodes
-        val (alice2, actions1) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice2, actions1) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(alice2 is Normal)
         actions1.hasCommandError<CannotCloseWithUnsignedOutgoingHtlcs>()
     }
@@ -1347,7 +1347,7 @@ class NormalTestsCommon : LightningTestSuite() {
         val (alice, bob) = reachNormal()
         val (nodes, _, _) = addHtlc(1000.msat, payer = alice, payee = bob)
         val (_, bob1) = nodes
-        val (bob2, actions1) = bob1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (bob2, actions1) = bob1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(bob2 is Normal)
         actions1.hasOutgoingMessage<Shutdown>()
         assertNotNull(bob2.localShutdown)
@@ -1357,7 +1357,7 @@ class NormalTestsCommon : LightningTestSuite() {
     fun `recv CMD_CLOSE (with invalid final script)`() {
         val (alice, _) = reachNormal()
         assertNull(alice.localShutdown)
-        val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(ByteVector("00112233445566778899"))))
+        val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(ByteVector("00112233445566778899"), null)))
         assertTrue(alice1 is Normal)
         actions1.hasCommandError<InvalidFinalScript>()
     }
@@ -1367,7 +1367,7 @@ class NormalTestsCommon : LightningTestSuite() {
         val (alice, bob) = reachNormal()
         val (nodes, _, _) = addHtlc(1000.msat, payer = alice, payee = bob)
         val (alice1, _) = crossSign(nodes.first, nodes.second)
-        val (alice2, actions1) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice2, actions1) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         actions1.hasOutgoingMessage<Shutdown>()
         assertTrue(alice2 is Normal)
         assertNotNull(alice2.localShutdown)
@@ -1377,11 +1377,11 @@ class NormalTestsCommon : LightningTestSuite() {
     fun `recv CMD_CLOSE (two in a row)`() {
         val (alice, _) = reachNormal()
         assertNull(alice.localShutdown)
-        val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(alice1 is Normal)
         actions1.hasOutgoingMessage<Shutdown>()
         assertNotNull(alice1.localShutdown)
-        val (alice2, actions2) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice2, actions2) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(alice2 is Normal)
         actions2.hasCommandError<ClosingAlreadyInProgress>()
     }
@@ -1393,7 +1393,7 @@ class NormalTestsCommon : LightningTestSuite() {
         val (alice1, actions1) = nodes.first.processEx(ChannelEvent.ExecuteCommand(CMD_SIGN))
         assertTrue(alice1 is Normal)
         actions1.hasOutgoingMessage<CommitSig>()
-        val (alice2, actions2) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice2, actions2) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(alice2 is Normal)
         actions2.hasOutgoingMessage<Shutdown>()
     }
@@ -1403,10 +1403,10 @@ class NormalTestsCommon : LightningTestSuite() {
         val (alice, _) = reachNormal()
         val (alice1, actions1) = alice.processEx(ChannelEvent.ExecuteCommand(CMD_UPDATE_FEE(FeeratePerKw(20_000.sat), false)))
         actions1.hasOutgoingMessage<UpdateFee>()
-        val (alice2, actions2) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice2, actions2) = alice1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         actions2.hasCommandError<CannotCloseWithUnsignedOutgoingUpdateFee>()
         val (alice3, _) = alice2.processEx(ChannelEvent.ExecuteCommand(CMD_SIGN))
-        val (alice4, actions4) = alice3.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (alice4, actions4) = alice3.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         assertTrue(alice4 is Normal)
         actions4.hasOutgoingMessage<Shutdown>()
     }
@@ -1424,7 +1424,7 @@ class NormalTestsCommon : LightningTestSuite() {
     fun `recv Shutdown (with unacked sent htlcs)`() {
         val (alice, bob) = reachNormal()
         val (nodes, _, _) = addHtlc(50000000.msat, payer = alice, payee = bob)
-        val (bob1, actions1) = nodes.second.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (bob1, actions1) = nodes.second.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
 
         val shutdown = actions1.findOutgoingMessage<Shutdown>()
         val (alice1, actions2) = nodes.first.processEx(ChannelEvent.MessageReceived(shutdown))
@@ -1464,7 +1464,7 @@ class NormalTestsCommon : LightningTestSuite() {
 
         // Bob initiates a close before receiving the signature.
         val (bob1, _) = bob.processEx(ChannelEvent.MessageReceived(updateFee))
-        val (bob2, bobActions2) = bob1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (bob2, bobActions2) = bob1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         val shutdownBob = bobActions2.hasOutgoingMessage<Shutdown>()
 
         val (bob3, bobActions3) = bob2.processEx(ChannelEvent.MessageReceived(sigAlice))
@@ -1505,7 +1505,7 @@ class NormalTestsCommon : LightningTestSuite() {
         val (alice, bob) = reachNormal()
         val (nodes, _, _) = addHtlc(50000000.msat, payer = alice, payee = bob)
         val (_, bob1) = crossSign(nodes.first, nodes.second)
-        val (bob2, actions1) = bob1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (bob2, actions1) = bob1.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         actions1.hasOutgoingMessage<Shutdown>()
 
         // actual test begins
@@ -1534,7 +1534,7 @@ class NormalTestsCommon : LightningTestSuite() {
         val (nodes, _, _) = addHtlc(50000000.msat, payer = alice, payee = bob)
         val (alice1, actions1) = nodes.first.processEx(ChannelEvent.ExecuteCommand(CMD_SIGN))
         actions1.hasOutgoingMessage<CommitSig>()
-        val (_, actions2) = bob.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (_, actions2) = bob.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         val shutdown = actions2.findOutgoingMessage<Shutdown>()
 
         // actual test begins
@@ -1547,7 +1547,7 @@ class NormalTestsCommon : LightningTestSuite() {
     fun `recv Shutdown (while waiting for a RevokeAndAck with pending outgoing htlc)`() {
         val (alice, bob) = reachNormal()
         // let's make bob send a Shutdown message
-        val (bob1, actions1) = bob.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null)))
+        val (bob1, actions1) = bob.processEx(ChannelEvent.ExecuteCommand(CMD_CLOSE(null, null)))
         val shutdown = actions1.findOutgoingMessage<Shutdown>()
 
         // this is just so we have something to sign

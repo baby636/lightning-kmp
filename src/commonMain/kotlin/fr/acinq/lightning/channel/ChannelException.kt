@@ -6,10 +6,12 @@ import fr.acinq.bitcoin.Satoshi
 import fr.acinq.bitcoin.Transaction
 import fr.acinq.lightning.CltvExpiry
 import fr.acinq.lightning.CltvExpiryDelta
+import fr.acinq.lightning.Features
 import fr.acinq.lightning.MilliSatoshi
 import fr.acinq.lightning.blockchain.fee.FeeratePerKw
 import fr.acinq.lightning.wire.AnnouncementSignatures
 import fr.acinq.lightning.wire.UpdateAddHtlc
+import fr.acinq.secp256k1.Hex
 
 open class ChannelException(open val channelId: ByteVector32, override val message: String) : RuntimeException(message) {
     fun details(): String = "$channelId: $message"
@@ -21,6 +23,8 @@ data class InvalidChainHash                        (override val channelId: Byte
 data class InvalidFundingAmount                    (override val channelId: ByteVector32, val fundingAmount: Satoshi, val min: Satoshi, val max: Satoshi) : ChannelException(channelId, "invalid funding_satoshis=$fundingAmount (min=$min max=$max)")
 data class InvalidPushAmount                       (override val channelId: ByteVector32, val pushAmount: MilliSatoshi, val max: MilliSatoshi) : ChannelException(channelId, "invalid pushAmount=$pushAmount (max=$max)")
 data class InvalidMaxAcceptedHtlcs                 (override val channelId: ByteVector32, val maxAcceptedHtlcs: Int, val max: Int) : ChannelException(channelId, "invalid max_accepted_htlcs=$maxAcceptedHtlcs (max=$max)")
+data class InvalidChannelType                      (override val channelId: ByteVector32, val channelType: Features) : ChannelException(channelId, "invalid channel_type=0x${Hex.encode(channelType.toByteArray())}")
+data class MissingChannelType                      (override val channelId: ByteVector32, val expected: Features) : ChannelException(channelId, "missing channel_type, expected 0x${Hex.encode(expected.toByteArray())}")
 data class DustLimitTooSmall                       (override val channelId: ByteVector32, val dustLimit: Satoshi, val min: Satoshi) : ChannelException(channelId, "dustLimit=$dustLimit is too small (min=$min)")
 data class DustLimitTooLarge                       (override val channelId: ByteVector32, val dustLimit: Satoshi, val max: Satoshi) : ChannelException(channelId, "dustLimit=$dustLimit is too large (max=$max)")
 data class DustLimitAboveOurChannelReserve         (override val channelId: ByteVector32, val dustLimit: Satoshi, val channelReserve: Satoshi) : ChannelException(channelId, "dustLimit=$dustLimit is above our channelReserve=$channelReserve")

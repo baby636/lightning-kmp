@@ -4,15 +4,16 @@ import fr.acinq.bitcoin.*
 import fr.acinq.bitcoin.io.ByteArrayInput
 import fr.acinq.bitcoin.io.ByteArrayOutput
 import fr.acinq.lightning.CltvExpiryDelta
+import fr.acinq.lightning.Features
 import fr.acinq.lightning.Lightning.randomBytes
 import fr.acinq.lightning.Lightning.randomBytes32
 import fr.acinq.lightning.Lightning.randomBytes64
 import fr.acinq.lightning.Lightning.randomKey
-import fr.acinq.lightning.Features
 import fr.acinq.lightning.MilliSatoshi
 import fr.acinq.lightning.ShortChannelId
 import fr.acinq.lightning.blockchain.fee.FeeratePerKw
 import fr.acinq.lightning.channel.ChannelOrigin
+import fr.acinq.lightning.channel.ChannelType
 import fr.acinq.lightning.crypto.assertArrayEquals
 import fr.acinq.lightning.tests.utils.LightningTestSuite
 import fr.acinq.lightning.utils.msat
@@ -245,8 +246,9 @@ class LightningCodecsTestsCommon : LightningTestSuite() {
         // To allow extending all messages with TLV streams, the upfront_shutdown_script was moved to a TLV stream extension
         // in https://github.com/lightningnetwork/lightning-rfc/pull/714 and made mandatory when including a TLV stream.
         // We don't make it mandatory at the codec level: it's the job of the actor creating the message to include it.
-        val defaultEncoded =
-            ByteVector("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000100000000000000010000000000000001000000000000000100000000000000010000000100010001031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d076602531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe33703462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b0362c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f703f006a18d5653c4edf5391ff23a61f03ff83d237e880ee61187fa9f379a028e0a00")
+        val defaultEncoded = ByteVector(
+            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000100000000000000010000000000000001000000000000000100000000000000010000000100010001031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d076602531fe6068134503d2723133227c867ac8fa6c83c537e9a44c3c5bdbdcb1fe33703462779ad4aad39514614751a71085f2f10e1c7a593e4e030efb5b8721ce55b0b0362c0a046dacce86ddd0343c6d3c7c79c2208ba0d9c9cf24a6d046d21d21f90f703f006a18d5653c4edf5391ff23a61f03ff83d237e880ee61187fa9f379a028e0a00"
+        )
 
         val testCases = mapOf(
             // legacy encoding without upfront_shutdown_script
@@ -266,9 +268,43 @@ class LightningCodecsTestsCommon : LightningTestSuite() {
             ),
             // non-empty upfront_shutdown_script + unknown odd tlv records
             defaultEncoded + ByteVector("0002 1234 0303010203") to defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.UpfrontShutdownScript(ByteVector("1234"))), listOf(GenericTlv(3L, ByteVector("010203"))))),
+            // channel type
+            defaultEncoded + ByteVector("0000 0103101000") to defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.UpfrontShutdownScript(ByteVector.empty), ChannelTlv.ChannelTypeTlv(ChannelType.AnchorOutputs)))),
+            // channel type + channel version
+            defaultEncoded + ByteVector("0000 0103101000 fe47000001040000000e") to defaultOpen.copy(
+                tlvStream = TlvStream(
+                    listOf(
+                        ChannelTlv.UpfrontShutdownScript(ByteVector.empty),
+                        ChannelTlv.ChannelTypeTlv(ChannelType.AnchorOutputs),
+                        ChannelTlv.ChannelVersionTlv(ChannelType.AnchorOutputs)
+                    )
+                )
+            ),
             // channel origin tlv records
-            defaultEncoded + ByteVector("fe47000005 2a 0001 187bf923f7f11ef732b73c417eb5a57cd4667b20a6f130ff505cd7ad3ab87281 00000000000004d2") to defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.ChannelOriginTlv(ChannelOrigin.PayToOpenOrigin(ByteVector32.fromValidHex("187bf923f7f11ef732b73c417eb5a57cd4667b20a6f130ff505cd7ad3ab87281"), 1234.sat))))),
-            defaultEncoded + ByteVector("fe47000005 2d 0002 223341754d3868536b584265746a644878577468524669483668596871463250726a72 00000000000001a4") to defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.ChannelOriginTlv(ChannelOrigin.SwapInOrigin("3AuM8hSkXBetjdHxWthRFiH6hYhqF2Prjr", 420.sat)))))
+            defaultEncoded + ByteVector("fe47000005 2a 0001 187bf923f7f11ef732b73c417eb5a57cd4667b20a6f130ff505cd7ad3ab87281 00000000000004d2") to defaultOpen.copy(
+                tlvStream = TlvStream(
+                    listOf(
+                        ChannelTlv.ChannelOriginTlv(
+                            ChannelOrigin.PayToOpenOrigin(
+                                ByteVector32.fromValidHex("187bf923f7f11ef732b73c417eb5a57cd4667b20a6f130ff505cd7ad3ab87281"),
+                                1234.sat
+                            )
+                        )
+                    )
+                )
+            ),
+            defaultEncoded + ByteVector("fe47000005 2d 0002 223341754d3868536b584265746a644878577468524669483668596871463250726a72 00000000000001a4") to defaultOpen.copy(
+                tlvStream = TlvStream(
+                    listOf(
+                        ChannelTlv.ChannelOriginTlv(
+                            ChannelOrigin.SwapInOrigin(
+                                "3AuM8hSkXBetjdHxWthRFiH6hYhqF2Prjr",
+                                420.sat
+                            )
+                        )
+                    )
+                )
+            )
         )
 
         testCases.forEach {
@@ -277,6 +313,19 @@ class LightningCodecsTestsCommon : LightningTestSuite() {
             assertEquals(expected, decoded)
             val reEncoded = decoded.write()
             assertEquals(it.key, ByteVector(reEncoded))
+        }
+    }
+
+    @Test
+    fun `open_channel channel type fallback to channel version`() {
+        val defaultOpen = OpenChannel(ByteVector32.Zeroes, ByteVector32.Zeroes, 1.sat, 1.msat, 1.sat, 1L, 1.sat, 1.msat, FeeratePerKw(1.sat), CltvExpiryDelta(1), 1, publicKey(1), point(2), point(3), point(4), point(5), point(6), 0.toByte())
+        val testCases = listOf(
+            defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.ChannelVersionTlv(ChannelType.StaticRemoteKey)))) to ChannelType.StaticRemoteKey,
+            defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.ChannelVersionTlv(ChannelType.AnchorOutputs)))) to ChannelType.AnchorOutputs,
+            defaultOpen.copy(tlvStream = TlvStream(listOf(ChannelTlv.ChannelTypeTlv(ChannelType.AnchorOutputs), ChannelTlv.ChannelVersionTlv(ChannelType.StaticRemoteKey)))) to ChannelType.AnchorOutputs,
+        )
+        testCases.forEach {
+            assertEquals(it.second.toFeatures(), it.first.channelType)
         }
     }
 
@@ -475,8 +524,33 @@ class LightningCodecsTestsCommon : LightningTestSuite() {
     @Test
     fun `encode - decode channel_announcement`() {
         val testCases = listOf(
-            ChannelAnnouncement(randomBytes64(), randomBytes64(), randomBytes64(), randomBytes64(), Features(Hex.decode("09004200")), randomBytes32(), ShortChannelId(42), randomKey().publicKey(), randomKey().publicKey(), randomKey().publicKey(), randomKey().publicKey()),
-            ChannelAnnouncement(randomBytes64(), randomBytes64(), randomBytes64(), randomBytes64(), Features(mapOf()), randomBytes32(), ShortChannelId(42), randomKey().publicKey(), randomKey().publicKey(), randomKey().publicKey(), randomKey().publicKey(), ByteVector("01020304")),
+            ChannelAnnouncement(
+                randomBytes64(),
+                randomBytes64(),
+                randomBytes64(),
+                randomBytes64(),
+                Features(Hex.decode("09004200")),
+                randomBytes32(),
+                ShortChannelId(42),
+                randomKey().publicKey(),
+                randomKey().publicKey(),
+                randomKey().publicKey(),
+                randomKey().publicKey()
+            ),
+            ChannelAnnouncement(
+                randomBytes64(),
+                randomBytes64(),
+                randomBytes64(),
+                randomBytes64(),
+                Features(mapOf()),
+                randomBytes32(),
+                ShortChannelId(42),
+                randomKey().publicKey(),
+                randomKey().publicKey(),
+                randomKey().publicKey(),
+                randomKey().publicKey(),
+                ByteVector("01020304")
+            ),
         )
 
         testCases.forEach {
@@ -570,7 +644,10 @@ class LightningCodecsTestsCommon : LightningTestSuite() {
     fun `encode - decode swap-in messages`() {
         val testCases = listOf(
             Pair(SwapInRequest(Block.LivenetGenesisBlock.blockId), Hex.decode("88bf000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f")),
-            Pair(SwapInResponse(Block.LivenetGenesisBlock.blockId, "bc1qms2el02t3fv8ecln0j74auassqwcg3ejekmypv"), Hex.decode("88c1000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f002a626331716d7332656c3032743366763865636c6e306a373461756173737177636733656a656b6d797076")),
+            Pair(
+                SwapInResponse(Block.LivenetGenesisBlock.blockId, "bc1qms2el02t3fv8ecln0j74auassqwcg3ejekmypv"),
+                Hex.decode("88c1000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f002a626331716d7332656c3032743366763865636c6e306a373461756173737177636733656a656b6d797076")
+            ),
             Pair(SwapInPending("bc1qms2el02t3fv8ecln0j74auassqwcg3ejekmypv", Satoshi(123456)), Hex.decode("88bd002a626331716d7332656c3032743366763865636c6e306a373461756173737177636733656a656b6d797076000000000001e240")),
             Pair(SwapInConfirmed("39gzznpTuzhtjdN5R2LZu8GgWLR9NovLdi", MilliSatoshi(42_000_000)), Hex.decode("88c700223339677a7a6e7054757a68746a644e3552324c5a75384767574c52394e6f764c6469000000000280de80"))
         )
